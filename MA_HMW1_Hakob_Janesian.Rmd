@@ -1,0 +1,169 @@
+---
+title: "HMW1_Marketing_Analytics_Hakob_Janesian"
+author: "Hakob Janesian"
+date: "2023-09-26"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+```{r, warning=FALSE, include = FALSE, echo = FALSE}
+libs = c('ggplot2', 'knitr', 'diffusion', 'openxlsx', 'ggpubr', "readxl", "dplyr")
+load_libraries <- function(libs){
+  new_libs <- libs[!(libs %in% installed.packages()[,"Package"])]
+  if(length(new_libs) > 0) { install.packages(new_libs) }
+  lapply(libs, library, character.only = TRUE)
+}
+load_libraries(libs)
+```
+# Problem 1
+
+The chosen innovation is the Apple Vision Pro, which introduces a pioneering spatial operating system.
+Said to be released in early 2024, it is an AR/VR headset with many cameras and sensors inside.
+It allows eye-based navigation, finger taps for selection, hand flips for scrolling, and voice commands for dictation.
+This innovation enriches entertainment activities like gaming and watching movies and even supports activities like internet browsing and FaceTiming.
+Finally, the Apple Vision Pro elevates all aspects of digital interaction.
+
+You can explore the rest of the product's features about by following the links below.
+
+## https://www.youtube.com/watch?v=TX9qSaGXFyg
+
+## https://www.apple.com/apple-vision-pro/
+
+# Problem 2
+
+The look-alike innovation is the Sony PlayStation VR (version 1) which was released on October 13, 2016, at a price point of $400.
+Exclusively compatible with the PS4 at that time, the PlayStation VR represented a significant leap in the gaming industry 
+by introducing high-quality VR experiences to its users. In order to emphasize  the immersive nature of the product,
+Sony adopted the motto "Feel them all". To further enhance the gamers' experience, the PSVR was complemented by accessories, 
+such as PlayStation Move, which are motion controllers that allow tactile interaction within the virtual environment.
+
+It is undeniable that the Sony PlayStation VR and Apple Vision Pro both paved new roads in the field of VR.
+The PSVR made a high-quality VR experience available to PlayStation gamers, setting a standard that the Apple Vision Pro is now broadening beyond the field of gaming.
+Ultimately, this is the reason that I specifically chose the PlayStation VR as the look-alike product.
+
+# Problem 3
+
+After conducting extensive research, I eventually found satisfactory data regarding the sales volume of PlayStation VR. The data presents the unit sales of PlayStation VR worldwide from February 2017 to January 2020 (in millions). This information is crucial for predicting potential sales trends for new innovations like the Apple Vision Pro, especially considering the growing demand for devices providing the experience of virtual/augmented reality.
+
+Since the data presents the worldwide sales of the PlayStation VR, it offers a global perspective on the market's response to the product.
+Released in October 2016, the PlayStation VR saw rapid initial adoption with 920000 units sold by February 2017. 
+Sales steadily grew, reaching 2 million by December 2017, 3 million by August 2018, 4.2 million by March 2019, and totaling 5 million units sold by January 2020. It is very important to note that the data is in cumulative form, so you will see below that I changed it back to its incremental form. 
+
+## The data was retrieved from - https://www.statista.com/statistics/987693/psvr-unit-sales/
+
+```{r}
+
+psvr_data = read_excel("psvr_unit_sales_worldwide.xlsx", sheet = "Data")
+colnames(psvr_data) <- c("Date", "Cumulative_Sales")
+
+
+psvr_data$Date = as.character(psvr_data$Date)
+
+
+psvr_data$Date = paste("01", psvr_data$Date, sep=" ")
+
+
+psvr_data$Date = as.Date(psvr_data$Date, format="%d %B %Y")
+
+
+psvr_data = psvr_data %>%
+  arrange(Date) %>%
+  mutate(Sales = c(Cumulative_Sales[1], diff(Cumulative_Sales)))
+
+psvr_sales = psvr_data$Sales
+```
+
+# Problem 4
+
+There are two methods for parameter estimation.
+Method_1 uses the nls() - Non-linear Least Squares and Method_2 uses library diffusion, where the p, q, m parameters are estimated as suggested by Bass.
+After trying both methods, I chose to present the results from Method 1 because its predictions are more accurate than those from Method 2.
+So we continue with nls().
+
+```{r}
+t = 1:length(psvr_sales)
+bass_psvr = nls(psvr_sales ~ m * (((p+q)^2/p)*exp(-(p+q)*t))/(1 + (q/p)*exp(-(p+q)*t))^2,
+                start = list(m = sum(psvr_sales), p = 0.02, q = 0.4))
+summary(bass_psvr)
+```
+```{r}
+# let's do this to make it reproducible
+params = coef(bass_psvr)
+p = params["p"]
+q =  params["q"]
+m =  params["m"]
+```
+
+# Problem 5, 6 and 7
+
+```{r}
+library(ggplot2)
+library(ggpubr)
+bass.f = function(t,p,q){((p+q)**2/p)*exp(-(p+q)*t)/ (1+(q/p)*exp(-(p+q)*t))**2}
+
+vr = ggplot(data.frame(t = c(1:5)), aes(t)) + 
+  stat_function(fun = bass.f, args = c(p, q)) + 
+  labs(title = 'f(t)')+
+  theme_minimal()
+
+vr_sales = ggplot(data = psvr_data, aes(x = psvr_data$Date, y = psvr_data$Sales)) +
+  geom_bar(stat = 'identity') + ggtitle('PlayStation VR sales (mln units)') + xlab("Year") +
+  ylab("Sales (Volume in mln units)")+ theme_minimal()
+  
+ggarrange(vr, vr_sales)
+```
+```{r}
+psvr_data$pred_sales = bass.f(1:5, p, q) * m
+ggplot(data = psvr_data, aes(x = psvr_data$Date, y = psvr_data$Sales)) +
+  geom_bar(stat = 'identity') +
+  xlab("Year") +
+  ylab("Sales (Volume in mln units)")+
+  ggtitle('Bass Modelling of PSVR sales (mln units)')+
+  geom_point(mapping = aes(x=psvr_data$Date, y=pred_sales), color = 'red', size = 3.5) +
+  theme_minimal()
+```
+
+Comment - According to the above plot, it is evident that the first two bars correspond with their predicted values. 
+Furthermore, it should be mentioned that the third bar reaching the value of 1 mln units sales does not correspond with
+it's predicted value of 1.12 mln unit sales. Also the fourth bar reaching the value of 1.2 mln units sales does not match with
+it's predicted value of 1.04 mln unit sales.Additionally, the fifth bar, representing sales of 0.8 million units, 
+nearly aligns with its predicted value of 0.86 million units. In conclusion, despite minor differences between the predicted 
+and actual sales in the plot, the predictions reasonably approximate the real sales data.
+
+Approaching from a worldwide perspective, we estimate the market size for the Apple Vision Pro using Fermi estimation method. 
+This process will allow us to predict the number of adopters per period and understand the potential market share of this innovative product.
+According to a briefing with TechCrunch, Apple revealed that there are now nearly 100 million active Mac users. The price is a 
+crucial factor in the adoption of the innovative product, as it can act as a barrier to many potential users. Given Apple's 
+premium pricing ($3499), only a subset of Mac users may be willing to purchase the Apple Vision Pro. I estimate that 
+approximately 10% of active Mac users might be interested in purchasing and trying the Apple Vision Pro. This assumption takes 
+into account the early adopters and tech enthusiasts within the Mac user community. 
+So based on Fermi estimation the value of m should be 10 (representing 10 million people).
+Maintaining the values of p and q as estimated by the model, is sensible. By only adjusting m,
+we provide different market size without altering the product adoption dynamics.
+
+## Source about the Mac users - https://www.theverge.com/2017/4/4/15176766/apple-microsoft-windows-10-vs-mac-users-figures-stats
+
+```{r}
+m = 10
+t = (1:5)*1.33333333333 # Adjusted 9month to a year
+Predsales = bass.f(t, p, q) * m
+plot_data = data.frame(
+  Year = 2024:2028, 
+  Predicted_Sales = Predsales)
+
+ggplot(data = plot_data, aes(x = as.factor(Year), y = Predicted_Sales)) +
+  geom_bar(stat = 'identity') +
+  geom_point(color = 'red', size = 3.5) +
+  labs(title = 'Bass Model: Predicted Sales of Apple Vision Pro (2024-2028)',
+       x = 'Year',
+       y = 'Predicted Sales (in million units)') +
+  theme_minimal()
+
+```
+
+Conclusion: Based on the p and q parameters estimated by the Bass model, and based on m's value estimated by Fermi logic we can see the predicted sales of Apple Vision Pro for 5 upcoming years. We can observe that it is predicted that during 2024 the unit(in millions) sales will reach to 1.3. Then in 2025 it will reach to it's peak 1.52. Then for 2026 it is predicted to reach to 1.41. Furthermore it is predicted that it will gradually decrease, reaching 0.72 during 2028.
+
